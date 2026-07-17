@@ -7,6 +7,7 @@ name = "math-assistant-agent"
 version = "0.1.0"
 description = "Math assistant build to help any student or research in topics related to math"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "accelerate>=1.14.0",

@@ -61,3 +61,16 @@ If you are contributing or running this project locally, please adhere to the fo
 * **[StackExchange API](https://api.stackexchange.com/)** for providing the rich mathematical data.
 * **[Qwen Team](https://huggingface.co/Qwen)** for releasing the powerful open-weights Qwen3-Thinking models.
 * **HuggingFace** for the `trl` and `peft` ecosystems.
+
+---
+
+## 📄 License
+
+This project's code is licensed under the [MIT License](LICENSE).
+
+Content sourced from Math StackExchange / MathOverflow (questions, answers, and anything derived from
+them, such as the training dataset and knowledge graph) is licensed by StackExchange under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), per their
+[Terms of Service](https://stackoverflow.com/legal/terms-of-service/public). That license requires
+attribution and share-alike for redistributed data — it applies independently of this repo's MIT code
+license.
