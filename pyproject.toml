@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "math-assistant-agent"
 version = "0.1.0"
@@ -9,12 +13,27 @@ dependencies = [
     "beautifulsoup4>=4.15.0",
     "bitsandbytes>=0.49.2",
     "datasets>=5.0.0",
+    "google-genai>=2.12.1",
     "langchain-core>=1.4.9",
     "langchain-openai>=1.3.5",
     "langgraph>=1.2.9",
     "peft>=0.19.1",
+    "pydantic>=2.13.4",
+    "python-dotenv>=1.2.2",
+    "pyvis>=0.3.2",
     "requests>=2.34.2",
     "torch>=2.13.0",
     "transformers>=5.13.1",
     "trl>=1.8.0",
+]
+
+# 1. Ensina o setuptools a procurar os pacotes dentro da pasta 'src'
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# 2. Cria um grupo de desenvolvimento para o uv (para rodar os notebooks)
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "jupyter>=1.1.1",
 ]
