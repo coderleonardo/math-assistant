@@ -1,13 +1,18 @@
 import json
 
+from math_assistant_agent.config import METADATA_TAGS
 from math_assistant_agent.data.cleaning import clean_html_for_math
 
 
-def build_graph_records(dados):
+def build_graph_records(dados, exclude_tags=METADATA_TAGS):
     """Convert Question/Answer pairs into a graph_data dict.
 
     Builds Question and Answer nodes linked by a HAS_ACCEPTED_ANSWER edge, and Tag
     nodes (deduplicated by name) linked to their Questions by TAGGED_WITH.
+
+    Tags in exclude_tags are skipped. This is a curation choice rather than a correctness
+    fix: meta tags like "big-list" do connect questions, but not by mathematical topic,
+    and they dominate the graph's hubs. Pass exclude_tags=() to keep every tag.
 
     Example:
         >>> raw_items = fetch_math_dataset(num_questions=5)
@@ -15,6 +20,8 @@ def build_graph_records(dados):
         >>> graph_data["nodes"][0]["label"]
         'Question'
     """
+    exclude_tags = frozenset(exclude_tags or ())
+
     nodes_by_id = {}
     edges = []
 
@@ -63,6 +70,9 @@ def build_graph_records(dados):
 
         # Nós Tag são compartilhados entre perguntas, então só criamos um por nome.
         for tag in item.get("tags", []):
+            if tag in exclude_tags:
+                continue
+
             tag_node_id = f"tag_{tag}"
             nodes_by_id.setdefault(
                 tag_node_id,
@@ -116,6 +126,33 @@ def prune_node_label(graph_data, label):
         >>> prune_node_label(graph_data, "Domain")  # drops Domain nodes + INCLUDES_CONCEPT edges
     """
     drop_ids = {node["id"] for node in graph_data["nodes"] if node["label"] == label}
+    graph_data["nodes"] = [node for node in graph_data["nodes"] if node["id"] not in drop_ids]
+    graph_data["edges"] = [
+        edge
+        for edge in graph_data["edges"]
+        if edge["source"] not in drop_ids and edge["target"] not in drop_ids
+    ]
+    return graph_data
+
+
+def prune_tags(graph_data, exclude_tags=METADATA_TAGS):
+    """Remove Tag nodes whose name is in exclude_tags, plus their incident edges.
+
+    The counterpart to build_graph_records's exclude_tags, for a graph that was already
+    built with every tag — cleans it in place instead of re-fetching from StackExchange.
+    Mutates and returns graph_data.
+
+    Example:
+        >>> prune_tags(graph_data)  # drops big-list, soft-question, intuition, ...
+    """
+    exclude_tags = frozenset(exclude_tags or ())
+
+    drop_ids = {
+        node["id"]
+        for node in graph_data["nodes"]
+        if node["label"] == "Tag" and node["properties"]["name"] in exclude_tags
+    }
+
     graph_data["nodes"] = [node for node in graph_data["nodes"] if node["id"] not in drop_ids]
     graph_data["edges"] = [
         edge
