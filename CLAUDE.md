@@ -55,16 +55,32 @@ prefer `NotebookEdit`/`nbformat`-aware tools or `python3 -c "import json; ..."` 
    shape: `langchain_openai.ChatOpenAI` pointed at the local inference server, wrapped by LangGraph's
    `create_react_agent`, with `InMemorySaver` as the short-term memory checkpointer.
 7. **Graph knowledge base (in progress)**: `src/math_assistant_agent/data/graph.py` structures raw
-   StackExchange data into a Question/Answer/Tag graph (`build_graph_records`); `enrichment/` calls an
-   LLM with structured JSON output to extract a `Concept -> ResolutionStep` "Graph Chain of
-   Thought" on top of it (`enrich_graph_records`); `visualization/` renders the result with PyVis
-   (`render_graph`). The extraction backend is pluggable via `enrich_graph_records`'s `extract_fn` param
-   — `extract_graph_entities` (Gemini, `response_schema`, the default) or `extract_graph_entities_groq`
-   (Groq `gpt-oss` models, JSON mode + `tenacity` retry on rate limits); both produce the same
-   `GraphExtraction` shape, so `enrich_graph_with_entities`'s node/edge building never varies by
-   provider. See `docs/usage.md`. The Neo4j database itself is
-   not wired up yet — everything above operates on a backend-agnostic `{"nodes": [...], "edges": [...]}`
-   dict, persisted as JSON.
+   StackExchange data into a Question/Answer/Tag skeleton (`build_graph_records`); `enrichment/` calls an
+   LLM with structured JSON output to add a `Concept` layer on top of it (`enrich_graph_records`);
+   `visualization/` renders the result with PyVis (`render_graph`). The Neo4j database itself is not
+   wired up yet — everything operates on a backend-agnostic `{"nodes": [...], "edges": [...]}` dict,
+   persisted as JSON. See `docs/usage.md`.
+
+   **Three node layers only — `Tag` (macro topic) / `Question`+`Answer` (substance) / `Concept` (shared
+   mid-layer).** Two rules are load-bearing here, both learned by getting them wrong:
+   - *A node type must be shareable between questions.* Resolution steps aren't — each solution's steps
+     are private to it — so they live as an ordered `resolution_steps` list on the `Answer` node, not as
+     `ResolutionStep` nodes. As nodes they were 39% of the graph and connected nothing. A prior `Domain`
+     layer was dropped for the same reason (it duplicated `Tag`, worse).
+   - *Concept consolidation needs a separate global pass, not extraction-time prompting.* Per-question
+     extraction fragments concepts badly (368 of 384 attached to exactly one question). String
+     normalization merges nothing — the duplication is semantic, not orthographic — and feeding existing
+     names back into the extraction prompt (`known_concepts`) only moved sharing 4% → 10%. The fix is
+     `enrichment/concept_resolution.py`: `resolve_concepts` clusters every concept at once using each
+     one's `description` as disambiguation context, then the pure `apply_concept_resolution` rewrites the
+     graph. Don't reach for fuzzy string matching here.
+
+   Both LLM stages are provider-pluggable via an `extract_fn` / `resolve_fn` param — Gemini
+   (`response_schema`, the default) or Groq `gpt-oss` (JSON mode + `tenacity` retry on rate limits).
+   Both backends return the same validated shape, so the node/edge building never varies by provider.
+
+   `config.METADATA_TAGS` filters form-describing tags (`big-list`, `soft-question`, …) out of the Tag
+   layer; they were the graph's largest hubs and buried the actual mathematical topics.
 8. **Planned (not yet implemented)**: Neo4j-backed persistence/retrieval for the graph above, Python
    sandbox / Wolfram Alpha tool calling, Redis semantic caching, and teacher→student distillation to a
    smaller (0.5B–1.5B) model.

@@ -3,6 +3,8 @@ from pyvis.network import Network
 NODE_COLORS = {
     "Question": "#FF9999",  # light red
     "Answer": "#99FF99",  # light green
+    "Tag": "#FFD480",  # light orange — the macro topic spine
+    "Concept": "#C9A0FF",  # light purple — the shared mid-layer
 }
 DEFAULT_NODE_COLOR = "#97C2FC"  # light blue
 
@@ -60,6 +62,17 @@ def render_graph(graph_data, output_path="knowledge_graph.html"):
         views = props.get("view_count", "N/A")
 
         hover_text = f"<b>Label:</b> {label}<br><b>Title:</b> {title}<br><b>Score:</b> {score} | <b>Views:</b> {views}"
+
+        # Resolution steps ride on the Answer node rather than being nodes themselves,
+        # so surface them on hover or they'd be invisible in the rendering.
+        steps = props.get("resolution_steps")
+        if steps:
+            hover_text += f"<br><b>Resolution steps:</b> {len(steps)}"
+
+        # Same for the surface forms a Concept absorbed during entity resolution.
+        aliases = props.get("aliases")
+        if aliases and len(aliases) > 1:
+            hover_text += f"<br><b>Also known as:</b> {', '.join(aliases)}"
 
         color = NODE_COLORS.get(label, DEFAULT_NODE_COLOR)
 

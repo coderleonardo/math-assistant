@@ -11,7 +11,9 @@ from math_assistant_agent.data import (
     fetch_math_dataset, prepare_dataset, save_dataset_jsonl,
     build_graph_records, save_graph_json,
 )
-from math_assistant_agent.enrichment import enrich_graph_records
+from math_assistant_agent.enrichment import (
+    enrich_graph_records, resolve_concepts, apply_concept_resolution,
+)
 from math_assistant_agent.visualization import render_graph
 
 raw_items = fetch_math_dataset(num_questions=50)
@@ -20,10 +22,13 @@ raw_items = fetch_math_dataset(num_questions=50)
 save_dataset_jsonl(prepare_dataset(raw_items), path="dataset_math_qlora.jsonl")
 
 # Knowledge-graph branch
-graph_data = build_graph_records(raw_items)
-save_graph_json(graph_data, path="data/graph_math_kb.json")
+graph_data = build_graph_records(raw_items)          # Question/Answer/Tag skeleton
+save_graph_json(graph_data, path="data/graph_math_raw.json")
 
-enrich_graph_records(graph_data)  # Gemini by default; see enrichment.md below
+enrich_graph_records(                                 # + Concept nodes, + steps on Answers
+    graph_data, checkpoint_path="data/graph_math_kb.json"
+)
+apply_concept_resolution(graph_data, resolve_concepts(graph_data))  # merge concept variants
 save_graph_json(graph_data, path="data/graph_math_kb.json")
 render_graph(graph_data, output_path="graph_math_kb.html")
 ```
@@ -48,6 +53,18 @@ Qwen3's required `\boxed{}` instruction on top, for the LangGraph agent path
   items → a backend-agnostic `{"nodes": [...], "edges": [...]}` dict, and back from a JSON checkpoint.
 - `graph.get_node_by_id` / `get_accepted_answer` / `get_questions_by_min_score` — read-only query helpers
   over a `graph_data` dict.
+- `graph.prune_node_label` / `prune_tags` — drop a whole layer, or just the meta tags, without leaving
+  dangling edges behind.
+
+**Tag curation.** `build_graph_records(dados, exclude_tags=METADATA_TAGS)` skips StackExchange tags that
+describe a question's *form* rather than its mathematics (`big-list`, `soft-question`, `intuition`, …;
+the list lives in `config.METADATA_TAGS`). They were the graph's largest hubs by degree — `big-list` at
+24 vs `nt.number-theory` at 13 — so the topic structure was routed through noise. Filtering them leaves a
+purely mathematical spine. This is a curation choice, not a correctness fix: pass `exclude_tags=()` to
+keep every tag, or use `prune_tags` to clean a graph that was already built with all of them.
+
+It is a deliberate blocklist rather than a heuristic, because MathOverflow's `xx.` prefix convention can't
+be used to infer it (`ho.history-overview` is a legitimate topic tag).
 
 See `docs/_01_phases.md` for how this connects to Neo4j down the line (not wired up yet).
 
@@ -94,17 +111,29 @@ into checkpointed history.
 
 Adds a semantic layer on top of the Question/Answer/Tag graph from `data.build_graph_records`: reads each
 question + its accepted answer with an LLM (structured JSON validated against the `GraphExtraction`
-Pydantic schema in `schemas.py`) and extracts `Concept -> Question -> ResolutionStep`, a "Graph Chain of
-Thought." The StackExchange `Tag` layer already handles coarse categorization (community-canonicalized,
-e.g. `nt.number-theory`), so there is deliberately no separate domain layer. Never creates
-Question/Answer/Tag nodes itself — it only adds to an existing `graph_data`.
+Pydantic schema in `schemas.py`) and attaches `Concept` nodes plus the solution's resolution steps. Never
+creates Question/Answer/Tag nodes itself — it only adds to an existing `graph_data`.
+
+**The graph has exactly three layers**, and the reason is worth stating because an earlier design got it
+wrong twice (a `Domain` layer that duplicated `Tag`, then a `ResolutionStep` node layer):
+
+| Layer | Node types | Role |
+|---|---|---|
+| Macro topic | `Tag` | Coarse categorization, community-canonicalized by StackExchange (`nt.number-theory`). Curated via `config.METADATA_TAGS`. |
+| Substance | `Question`, `Answer` | The actual content. Resolution steps ride on the `Answer` as an ordered `resolution_steps` property. |
+| Shared mid-layer | `Concept` | Fine-grained mathematical ideas that link problems across topics. |
+
+A node type is only worth having if instances can be **shared** between questions. Resolution steps can't
+— every solution's steps are private to it, and no traversal ever crosses from one question's chain to
+another's — so they are node *properties*, not nodes. As node chains they were 39% of the graph while
+connecting nothing.
 
 Two interchangeable backends, both producing the same `GraphExtraction` shape:
 
-| Backend | Client | `extract_fn` | Requires |
-|---|---|---|---|
-| Gemini (default) | `build_gemini_client` | `extract_graph_entities` | `GEMINI_API_KEY` |
-| Groq (`gpt-oss`) | `build_groq_client` | `extract_graph_entities_groq` | `GROQ_API_KEY` |
+| Backend | Client | `extract_fn` | `resolve_fn` | Requires |
+|---|---|---|---|---|
+| Gemini (default) | `build_gemini_client` | `extract_graph_entities` | `resolve_concepts_gemini` | `GEMINI_API_KEY` |
+| Groq (`gpt-oss`) | `build_groq_client` | `extract_graph_entities_groq` | `resolve_concepts_groq` | `GROQ_API_KEY` |
 
 `graph_enrichment.enrich_graph_records(graph_data, client=None, extract_fn=extract_graph_entities,
 sleep_seconds=0, checkpoint_path=None, checkpoint_every=10)` is the batch entry point:
@@ -127,21 +156,59 @@ sleep_seconds=0, checkpoint_path=None, checkpoint_every=10)` is the batch entry 
   pass `checkpoint_path=` to enable iterative saving, or ignore the warning if you'll save the returned
   value yourself.
 - **Controlled vocabulary:** the concept names already in the graph are fed to `extract_fn` as
-  `known_concepts` each iteration, so the LLM reuses an existing name when one fits instead of inventing a
-  new phrasing for the same idea — this is what keeps the `Concept` layer connective rather than near-1:1
-  with questions. A custom `extract_fn` must accept a `known_concepts` keyword (both built-ins do). String
-  normalization is deliberately *not* used for this — concept duplication here is semantic, not spelling,
-  so it merges nothing; embedding-based merging of an existing graph's concepts is the future lever for
-  retro-consolidation.
+  `known_concepts` each iteration, so the LLM reuses an existing name when one fits. A custom `extract_fn`
+  must accept a `known_concepts` keyword (both built-ins do). This only helps at the margin (measured: it
+  moved cross-question concept sharing from 4% to 10%) — **`concept_resolution` below is the pass that
+  actually consolidates the layer.**
+
+⚠️ When `graph_data` is a path, `checkpoint_path` defaults to that same path, so the input file is
+overwritten in place. Pass an explicit `checkpoint_path` to keep a pristine raw graph to re-run from.
 
 ```python
 from math_assistant_agent.enrichment import build_groq_client, extract_graph_entities_groq, enrich_graph_records
 
 client = build_groq_client()
 enrich_graph_records(
-    "data/graph_math_kb.json", client=client, extract_fn=extract_graph_entities_groq, sleep_seconds=15
+    "data/graph_math_raw.json",                  # raw input, left untouched
+    checkpoint_path="data/graph_math_kb.json",   # enriched output
+    client=client,
+    extract_fn=extract_graph_entities_groq,
+    sleep_seconds=15,
 )
 ```
+
+### `concept_resolution` — consolidating the Concept layer
+
+Extraction runs one question at a time, so the same idea comes back phrased differently each time
+("Kunneth Formula" / "Künneth theorem" / "Künneth's short exact sequence"). Left alone this is severe:
+in a 100-question graph, **368 of 384 concepts attached to exactly one question**, so the layer meant to
+link problems linked essentially nothing.
+
+String normalization does not fix it — measured, lowercasing plus article/possessive stripping merged
+**0 of 384**, because the duplication is semantic rather than orthographic. Prompting the extractor to
+reuse names (above) helps only marginally. What works is a **separate global pass over every concept at
+once**, using each concept's one-sentence `description` as disambiguation context — which is why
+`schemas.Concept` carries a description at all.
+
+```python
+from math_assistant_agent.enrichment import resolve_concepts, apply_concept_resolution
+
+alias_map = resolve_concepts(graph_data)          # LLM calls; returns {alias: canonical}
+apply_concept_resolution(graph_data, alias_map)   # pure, no LLM — rewrites the graph
+```
+
+The two steps are separate on purpose: the map can be inspected (and hand-edited) before anything changes,
+and re-applied without spending tokens again.
+
+- `resolve_concepts(graph_data, client=None, resolve_fn=resolve_concepts_gemini, block_size=80)` resolves
+  in blocks rather than one giant prompt, then runs a **second pass over the resulting canonicals** so
+  duplicates that landed in different blocks still merge. Concepts with no `description` (e.g. extracted
+  before the field existed) fall back to the titles of the questions they apply to.
+- `build_alias_map(clusters, all_names)` maps any name the model omitted from every cluster to itself, so
+  a concept can never silently vanish because the resolver forgot to mention it.
+- `apply_concept_resolution` merges nodes (keeping the longest description, recording absorbed surface
+  forms in an `aliases` property), repoints edges, and **deduplicates** them — two concepts merging while
+  both pointed at the same question would otherwise leave a parallel edge behind.
 
 ## `visualization`
 
