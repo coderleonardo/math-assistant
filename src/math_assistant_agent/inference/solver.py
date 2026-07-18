@@ -4,6 +4,16 @@ from math_assistant_agent.config import GENERATION_DEFAULTS, SYSTEM_PROMPT, THIN
 
 
 def solve(pergunta, model, tokenizer, system_prompt=SYSTEM_PROMPT, **generation_overrides):
+    """Generate an answer to pergunta and split it into (thinking_content, final_answer).
+
+    generation_overrides merges into config.GENERATION_DEFAULTS (temperature, top_p,
+    top_k, max_new_tokens). Splits on the </think> close-tag token id
+    (config.THINK_END_TOKEN_ID) rather than string-matching decoded text.
+
+    Example:
+        model, tokenizer = load_finetuned_model()
+        thinking, answer = solve("What is the derivative of x^2?", model, tokenizer)
+    """
     # Usamos o mesmo system prompt do treinamento para ativar a "persona" correta
     messages = [
         {"role": "system", "content": system_prompt},

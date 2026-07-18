@@ -15,6 +15,10 @@ wheels/
 # Generated graph data artifacts
 data/*.json
 data/*.html
+data/*.bak
 
 # PyVis static assets auto-copied next to notebooks
 notebooks/data/lib/
+
+# Local session helper
+.last_session.txt

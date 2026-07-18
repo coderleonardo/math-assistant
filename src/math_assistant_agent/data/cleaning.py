@@ -4,9 +4,14 @@ from bs4 import BeautifulSoup
 
 
 def clean_html_for_math(html_text):
-    """
-    Remove tags HTML, converte parágrafos em quebras de linha e
-    preserva o conteúdo das fórmulas (MathJax/LaTeX).
+    """Strip HTML from html_text while preserving MathJax/LaTeX ($...$) content.
+
+    Paragraphs/headings/code blocks become blank lines and list items become "- "
+    bullets before text extraction, so BeautifulSoup's plain-text output stays readable.
+
+    Example:
+        >>> clean_html_for_math("<p>Solve $x^2=4$</p>")
+        'Solve $x^2=4$'
     """
     if not html_text:
         return ""

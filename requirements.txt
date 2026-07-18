@@ -1,0 +1,25 @@
+# Data acquisition & preprocessing
+requests
+beautifulsoup4
+
+# QLoRA fine-tuning / inference
+torch
+transformers
+peft
+bitsandbytes
+accelerate
+trl
+datasets
+
+# Agent orchestration (LangGraph)
+langchain-core
+langchain-openai
+langgraph
+
+# Graph knowledge base: LLM structured-output enrichment & visualization
+google-genai
+groq
+tenacity
+pydantic
+python-dotenv
+pyvis

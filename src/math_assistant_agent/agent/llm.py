@@ -8,6 +8,14 @@ def build_llm(
     temperature=0.6,  # Parâmetro recomendado para o Qwen3
     top_p=0.95,  # Top-P recomendado
 ):
+    """Build a ChatOpenAI client pointed at a local OpenAI-compatible inference server.
+
+    Defaults match a merged, self-hosted model served via vLLM/Ollama, not a hosted API
+    — api_key is a placeholder, not a real credential.
+
+    Example:
+        llm = build_llm(api_base="http://localhost:8000/v1")
+    """
     return ChatOpenAI(
         model=model,
         openai_api_key=api_key,

@@ -4,10 +4,16 @@ from trl import SFTConfig, SFTTrainer
 
 
 def load_training_dataset(jsonl_path):
+    """Load a ShareGPT-format JSONL file (from data.save_dataset_jsonl) as a HF Dataset."""
     return load_dataset("json", data_files=jsonl_path, split="train")
 
 
 def build_training_args(output_dir="./qwen-math-agent", **overrides):
+    """Build an SFTConfig with QLoRA-appropriate defaults, overridable via **overrides.
+
+    max_steps=1 in the defaults is a smoke-test value — pass num_train_epochs (and drop
+    max_steps) for a real training run.
+    """
     defaults = dict(
         output_dir=output_dir,
         per_device_train_batch_size=1,  # Reduzido para caber na memória (ajuste conforme sua GPU)
@@ -27,7 +33,7 @@ def build_training_args(output_dir="./qwen-math-agent", **overrides):
 
 
 def build_trainer(model, training_args, dataset, tokenizer, peft_config):
-    # O TRL vai envelopar o modelo com o peft_config pra você aqui
+    """Build an SFTTrainer; TRL wraps model with peft_config internally."""
     return SFTTrainer(
         model=model,
         args=training_args,
@@ -38,6 +44,7 @@ def build_trainer(model, training_args, dataset, tokenizer, peft_config):
 
 
 def train_and_save_adapter(trainer, tokenizer, adapter_dir="./qwen-math-agent-adapter"):
+    """Run trainer.train(), then save only the LoRA adapter (not the full base model)."""
     print("Iniciando o Fine-Tuning do seu Agente Matemático...")
     trainer.train()
 

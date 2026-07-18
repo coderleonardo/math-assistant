@@ -2,6 +2,7 @@ from peft import LoraConfig
 
 
 def build_lora_config():
+    """Build the LoraConfig applied to all attention/MLP projections (r=16, alpha=32)."""
     return LoraConfig(
         r=16,
         lora_alpha=32,
