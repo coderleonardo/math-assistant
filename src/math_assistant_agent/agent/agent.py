@@ -5,6 +5,12 @@ from math_assistant_agent.config import AGENT_SYSTEM_PROMPT
 
 
 def build_math_agent(llm, tools=None, system_prompt=AGENT_SYSTEM_PROMPT, checkpointer=None):
+    """Build a LangGraph ReAct agent wrapping llm, with an InMemorySaver checkpointer by default.
+
+    Example:
+        llm = build_llm()
+        agent = build_math_agent(llm)
+    """
     if tools is None:
         tools = []
     if checkpointer is None:

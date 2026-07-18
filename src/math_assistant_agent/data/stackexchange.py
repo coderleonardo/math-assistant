@@ -2,6 +2,17 @@ import requests
 
 
 def fetch_math_dataset(api_key=None, num_questions=5):
+    """Fetch top-voted, accepted-answer questions from the MathOverflow StackExchange API.
+
+    Returns a list of dicts with question_id, answer_id, title, prompt (question body),
+    completion (accepted answer body), tags, question_score, view_count, link, and
+    answer_score. Skips questions without both an accepted answer and a non-empty body.
+    Prints and returns [] on a non-200 response instead of raising.
+
+    Example:
+        items = fetch_math_dataset(num_questions=5)
+        items[0]["title"]
+    """
     # Mudamos para search/advanced para suportar o filtro de 'accepted'
     url = "https://api.stackexchange.com/2.3/search/advanced"
 

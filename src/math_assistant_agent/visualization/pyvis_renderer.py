@@ -25,9 +25,14 @@ var options = {
 
 
 def render_graph(graph_data, output_path="knowledge_graph.html"):
-    """
-    Takes a dict with 'nodes' and 'edges' and generates an interactive HTML
-    visualization file.
+    """Render graph_data as an interactive PyVis HTML file at output_path.
+
+    Nodes are colored by label (see NODE_COLORS/DEFAULT_NODE_COLOR); edges are labeled
+    with their relationship type. Open output_path directly in a browser, no server
+    needed.
+
+    Example:
+        render_graph(graph_data, output_path="graph_math_kb.html")
     """
     print(
         f"Rendering visualization for {len(graph_data.get('nodes', []))} nodes "

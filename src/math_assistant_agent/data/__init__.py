@@ -5,6 +5,8 @@ from math_assistant_agent.data.graph import (
     get_accepted_answer,
     get_node_by_id,
     get_questions_by_min_score,
+    load_graph_json,
+    prune_node_label,
     save_graph_json,
 )
 from math_assistant_agent.data.stackexchange import fetch_math_dataset
@@ -16,6 +18,8 @@ __all__ = [
     "save_dataset_jsonl",
     "build_graph_records",
     "save_graph_json",
+    "load_graph_json",
+    "prune_node_label",
     "get_node_by_id",
     "get_accepted_answer",
     "get_questions_by_min_score",

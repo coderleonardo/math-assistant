@@ -3,7 +3,7 @@ from transformers import BitsAndBytesConfig
 
 
 def build_bnb_config():
-    """Configuração do BitsAndBytes para quantização em 4-bits (o "Q" do QLoRA)."""
+    """Build the BitsAndBytesConfig for 4-bit NF4 quantization (the "Q" in QLoRA)."""
     return BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
