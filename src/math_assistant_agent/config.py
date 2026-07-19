@@ -28,6 +28,26 @@ GEMINI_EXTRACTION_TEMPERATURE = 0.1
 GROQ_MODEL_NAME = "openai/gpt-oss-20b"
 GROQ_EXTRACTION_TEMPERATURE = 0.1
 
+# Prompt for the agent's keyword-extraction node (agent.extractor.retrieve_key_words).
+# Must ask for English keywords so they match the (English) knowledge-graph text.
+KEYWORD_EXTRACTION_PROMPT = """You are a mathematical librarian.
+Analyze the user's question and extract 1 to 3 mathematical concepts or keywords.
+You MUST return ONLY a JSON object with the key "key_words" containing a list of strings (in English, to match the database).
+Example: {"key_words": ["polynomials", "roots", "unit circle"]}
+"""
+
+# Prompt template for the agent's answer-generation node (agent.generator.brain).
+# It is a template: brain() fills {graph_context} with the retrieved knowledge-graph text.
+ANSWER_GENERATION_PROMPT = """
+    You are an expert Math Teaching Assistant.
+    Your goal is to answer the user's question clearly, using ONLY the context provided below.
+    If the context contains LaTeX math, format your response using proper LaTeX delimiters ($ for inline, $$ for block).
+    Break your explanation into logical steps. Do not hallucinate math theorems outside the context.
+
+    CONTEXT RETRIEVED FROM KNOWLEDGE GRAPH:
+    {graph_context}
+    """
+
 # StackExchange tags that describe a question's *form* rather than its mathematics.
 # They are the graph's biggest hubs by degree, which makes the topic structure hard to
 # read: everything routes through "big-list" instead of through a field of mathematics.
