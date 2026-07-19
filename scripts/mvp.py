@@ -6,7 +6,7 @@ question so you can smoke-test the extractor -> retriever -> brain flow end to e
 Usage:
     python scripts/mvp.py
     python scripts/mvp.py "How do I integrate x^2?"
-    python scripts/mvp.py "..." --graph data/graph_math_kb_2026-07-18-15.json
+    python scripts/mvp.py "How do I integrate x^2?" --graph data/graph_math_2026-07-17-16.json
 
 Requires GROQ_API_KEY in the environment (or a .env file at the repo root).
 """
